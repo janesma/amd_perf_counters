@@ -118,34 +118,45 @@ int main() {
     }
   }
 
-  unsigned int monitor;
-  glGenPerfMonitorsAMD(1, &monitor);
-  glSelectPerfMonitorCountersAMD(monitor, GL_TRUE, target_group, 1,
-                                       &target_counter);
+  std::vector<unsigned int> monitors(100);
+  glGenPerfMonitorsAMD(monitors.size(), monitors.data());
+  for (auto monitor : monitors)
+    glSelectPerfMonitorCountersAMD(monitor, GL_TRUE, target_group, 1,
+                                   &target_counter);
+  std::vector<unsigned int> used_monitors;
   std::vector<unsigned char> buffer;
   while(true) {
+    if (monitors.empty()) {
+      glFinish();
+      GLuint resultSize;
+      for (auto monitor : used_monitors) {
+        glGetPerfMonitorCounterDataAMD(monitor, GL_PERFMON_RESULT_SIZE_AMD, 
+                                       sizeof(GLint), &resultSize, NULL);
+        buffer.resize(resultSize);
+        GLsizei bytesWritten;
+        glGetPerfMonitorCounterDataAMD(monitor, GL_PERFMON_RESULT_AMD,  
+                                       resultSize,
+                                       (uint*) buffer.data(), &bytesWritten);
+        if (bytesWritten == 0)
+          printf("WARN: no data from counter\n");
+        else {
+          GLuint group  = *((GLuint*) buffer.data());
+          GLuint counter = *((GLuint*) buffer.data() + sizeof(GLuint));
+          uint64_t counterResult = *(uint64_t*)(buffer.data() + 2*sizeof(GLuint));
+          printf("clocks: %lld\n", counterResult);
+        }
+        monitors.push_back(monitor);
+      }
+      used_monitors.clear();
+    }
+    auto monitor = monitors.back();
+    monitors.pop_back();
+    used_monitors.push_back(monitor);
     glBeginPerfMonitorAMD(monitor);
     glClearColor(1.0, 1.0, 1.0, 1.0);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glEndPerfMonitorAMD(monitor);
     waffle_window_swap_buffers(window);
-    glFinish();
-    GLuint resultSize;
-    glGetPerfMonitorCounterDataAMD(monitor, GL_PERFMON_RESULT_SIZE_AMD, 
-                                   sizeof(GLint), &resultSize, NULL);
-    buffer.resize(resultSize);
-    GLsizei bytesWritten;
-    glGetPerfMonitorCounterDataAMD(monitor, GL_PERFMON_RESULT_AMD,  
-                                   resultSize,
-                                   (uint*) buffer.data(), &bytesWritten);
-    if (bytesWritten == 0)
-      printf("WARN: no data from counter\n");
-    else {
-      GLuint group  = *((GLuint*) buffer.data());
-      GLuint counter = *((GLuint*) buffer.data() + sizeof(GLuint));
-      uint64_t counterResult = *(uint64_t*)(buffer.data() + 2*sizeof(GLuint));
-      printf("clocks: %lld\n", counterResult);
-    }
     glClearColor(0.0, 1.0, 1.0, 1.0);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     waffle_window_swap_buffers(window);
