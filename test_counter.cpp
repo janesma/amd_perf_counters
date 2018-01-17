@@ -111,6 +111,10 @@ int main() {
              group_name.data(), group,
              counter_name.data(), counter,
              type_map[counter_type].c_str());
+      if (strcmp("GRBM_000", counter_name.data()) == 0) {
+        target_counter = counter;
+        target_group = group;
+      }
     }
   }
 
@@ -136,6 +140,12 @@ int main() {
                                    (uint*) buffer.data(), &bytesWritten);
     if (bytesWritten == 0)
       printf("WARN: no data from counter\n");
+    else {
+      GLuint group  = *((GLuint*) buffer.data());
+      GLuint counter = *((GLuint*) buffer.data() + sizeof(GLuint));
+      uint64_t counterResult = *(uint64_t*)(buffer.data() + 2*sizeof(GLuint));
+      printf("clocks: %lld\n", counterResult);
+    }
     glClearColor(0.0, 1.0, 1.0, 1.0);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     waffle_window_swap_buffers(window);
